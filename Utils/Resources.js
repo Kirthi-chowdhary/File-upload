@@ -209,49 +209,58 @@ async function ProcessUploadedFile(data,projectId)
     var extension = path.extname(result.originalname);
     var fileContent = result.buffer;  
     // let fileStream = Readable.from(fileContent);
-    const pdfDoc = await PDFDocument.load(fileContent);
-    const numberOfPages = pdfDoc.getPages().length;
-    const pageCount = 10;
-    let splitIndex = 0;
+    if(extension == 'pdf')
+    {
+      const pdfDoc = await PDFDocument.load(fileContent);
+      const numberOfPages = pdfDoc.getPages().length;
+      const pageCount = 10;
+      let splitIndex = 0;
 
-    async function  SplitPdfFile() {
-      for (let start = 0; start < numberOfPages; start += pageCount) {
-        const end = Math.min(start + pageCount, numberOfPages);
-        const newPdf = await PDFDocument.create();
-        const copiedPages = await newPdf.copyPages(
-          pdfDoc,
-          generateNumberArray(start, end)
-        );
+      async function  SplitPdfFile() {
+        for (let start = 0; start < numberOfPages; start += pageCount) {
+          const end = Math.min(start + pageCount, numberOfPages);
+          const newPdf = await PDFDocument.create();
+          const copiedPages = await newPdf.copyPages(
+            pdfDoc,
+            generateNumberArray(start, end)
+          );
 
-        copiedPages.forEach((page) => {
-          newPdf.addPage(page);
-        });
+          copiedPages.forEach((page) => {
+            newPdf.addPage(page);
+          });
 
-        const outputPdfBytes = await newPdf.save();
-        templatechunks.push(outputPdfBytes);
-        splitIndex++;
+          const outputPdfBytes = await newPdf.save();
+          templatechunks.push(outputPdfBytes);
+          splitIndex++;
+        }
+      }
+
+      await   SplitPdfFile();
+      const promises = templatechunks.map(async (templatechunk, i) => {
+        let fileId = uuidv4();
+        let blobName = fileId + ".pdf";
+      
+        try {
+          await uploadBytesToBlobStorage(containerName, blobName, templatechunk);
+      await updatequery.uploadPdfFieInfo(fileId, result.originalname,blobName,i,projectId)
+        } catch (error) {
+          console.log(error);
+          throw error;
+        }
+      });
+      try {
+      
+        const responses = await Promise.all(promises);
+        console.log(responses);
+      } catch (error) {
+        // res.status(500).json({ message: error });
       }
     }
-
-    await   SplitPdfFile();
-    const promises = templatechunks.map(async (templatechunk, i) => {
-      let fileId = uuidv4();
-      let blobName = fileId + ".pdf";
-    
-      try {
-        await uploadBytesToBlobStorage(containerName, blobName, templatechunk);
-    await updatequery.uploadPdfFieInfo(fileId, result.originalname,blobName,i,projectId)
-      } catch (error) {
-        console.log(error);
-        throw error;
-      }
-    });
-    try {
-     
-      const responses = await Promise.all(promises);
-      console.log(responses);
-    } catch (error) {
-      // res.status(500).json({ message: error });
+    else{
+      // Create an instance of Docxtemplater for working with the DOCX content
+      const doc = new Docxtemplater();
+      doc.loadZip(fileContent); // Load the DOCX content into the docxtemplater instance
+      
     }
   }
 }
