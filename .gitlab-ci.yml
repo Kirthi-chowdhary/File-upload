@@ -1,0 +1,16 @@
+docker-build:
+  image: docker:latest
+  stage: build
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - |
+      tag="$CI_COMMIT_BRANCH"
+      docker build -t "$CI_REGISTRY_IMAGE/$tag:latest" .
+      docker push "$CI_REGISTRY_IMAGE/$tag:latest"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "uat" || $CI_COMMIT_BRANCH == "main"'
+      exists:
+        - Dockerfile
