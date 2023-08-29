@@ -1,5 +1,8 @@
 
 const { v4: uuidv4 } = require("uuid");
+const mammoth = require('mammoth');
+const officegen = require('officegen');
+const fs = require('fs');
 const updatequery = require("./SqlQueries");
 const axios=require('axios')
 const { BlobServiceClient } = require("@azure/storage-blob");
@@ -209,8 +212,9 @@ async function ProcessUploadedFile(data,projectId)
     var extension = path.extname(result.originalname);
     var fileContent = result.buffer;  
     // let fileStream = Readable.from(fileContent);
-    if(extension == 'pdf')
-    {
+
+    if (extension === '.pdf') {
+     try{
       const pdfDoc = await PDFDocument.load(fileContent);
       const numberOfPages = pdfDoc.getPages().length;
       const pageCount = 10;
@@ -255,15 +259,74 @@ async function ProcessUploadedFile(data,projectId)
       } catch (error) {
         // res.status(500).json({ message: error });
       }
+     }catch (error) {
+      console.log('Error parsing PDF document:', error);
+      // Handle the error as needed
     }
-    else{
-      // Create an instance of Docxtemplater for working with the DOCX content
-      const doc = new Docxtemplater();
-      doc.loadZip(fileContent); // Load the DOCX content into the docxtemplater instance
+    } 
+    else if (extension === '.docx') {
+      try {
+        const result = await mammoth.extractRawText({ buffer: fileContent });
+        const text = result.value;
+
+        // Split DOCX content into parts
+        const parts = splitDocxIntoParts(text);
+        console.log(parts)
+
+        // Generate and upload each part
+        const promises = parts.map(async (templatechunk, i) => {
+          let fileId = uuidv4();
+          let blobName = fileId + ".docx";
+
+          const bytes = Buffer.from(templatechunk, 'utf-8');
+        
+          try {
+            await uploadBytesToBlobStorage(containerName, blobName, bytes);
+        await updatequery.uploadPdfFieInfo(fileId, result.originalname,blobName,i,projectId)
+          } catch (error) {
+            console.log(error);
+            throw error;
+          }
+        });
+        try {
       
+          const responses = await Promise.all(promises);
+          console.log(responses);
+        } catch (error) {
+          // res.status(500).json({ message: error });
+        }
+
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
     }
+    
   }
 }
+
+function splitDocxIntoParts(text) {
+  const estimatedWordsPerPart = 15000;
+  const words = text.split(' ');
+
+  const parts = [];
+  let currentPart = '';
+
+  for (const word of words) {
+    if ((currentPart + word).length > estimatedWordsPerPart) {
+      parts.push(currentPart);
+      currentPart = '';
+    }
+    currentPart += (currentPart ? ' ' : '') + word;
+  }
+
+  if (currentPart) {
+    parts.push(currentPart);
+  }
+
+  return parts;
+}
+
 async function searchCollection(id,verctorvalues,accessfiles) {
 
   let accessiblefiles=[]
