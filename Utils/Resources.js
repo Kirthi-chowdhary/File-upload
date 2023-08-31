@@ -207,20 +207,49 @@ function generateNumberArray(start, end) {
 }
 async function ProcessUploadedFile(data,projectId)
 {
-  let templatechunks=[]
+  let templatechunks = [];
   for (const result of data) {
+    let fileType = result.mimetype.split("/")[1];
+    console.log("fileType", fileType);
     var extension = path.extname(result.originalname);
-    var fileContent = result.buffer;  
+    var fileContent = result.buffer;
     // let fileStream = Readable.from(fileContent);
+    console.log(result.originalname)
 
-    if (extension === '.pdf') {
-     try{
+    const pageCount = 10;
+    let splitIndex = 0;
+    let mainPDFId = uuidv4();
+    console.log("mainFileId : ", mainPDFId);
+    // let mainPDFBlobName = mainPDFId + ".pdf";
+    let mainPDFBlobName = `${mainPDFId}.${fileType}`;
+    console.log(
+      "UPLOADING SPLIT PDF WHOS ID is mainPDFBlobName : ",
+      mainPDFBlobName
+    );
+    // await uploadBytesToBlobStorage(containerName, mainPDFBlobName, fileContent);
+    // if(fileType != 'vnd.openxmlformats-officedocument.wordprocessingml.document'){
+    //   await updatequery.uploadPdfFieInfo(
+    //     mainPDFId,
+    //     result.originalname,
+    //     mainPDFBlobName,
+    //     projectId,
+    //     fileType
+    //   );
+    // }else{
+    //   await updatequery.uploadPdfFieInfo(
+    //     mainPDFId,
+    //     result.originalname,
+    //     mainPDFBlobName,
+    //     projectId,
+    //     'docx'
+    //   );
+    // }
+    
+
+    if (fileType == "pdf") {
       const pdfDoc = await PDFDocument.load(fileContent);
       const numberOfPages = pdfDoc.getPages().length;
-      const pageCount = 10;
-      let splitIndex = 0;
-
-      async function  SplitPdfFile() {
+      async function SplitPdfFile() {
         for (let start = 0; start < numberOfPages; start += pageCount) {
           const end = Math.min(start + pageCount, numberOfPages);
           const newPdf = await PDFDocument.create();
@@ -234,55 +263,88 @@ async function ProcessUploadedFile(data,projectId)
           });
 
           const outputPdfBytes = await newPdf.save();
-          templatechunks.push(outputPdfBytes);
+          templatechunks.push({
+            startPageNumber: start + 1,
+            splitPDFBytes: outputPdfBytes,
+          });
           splitIndex++;
         }
       }
 
-      await   SplitPdfFile();
+      await SplitPdfFile();
       const promises = templatechunks.map(async (templatechunk, i) => {
-        let fileId = uuidv4();
-        let blobName = fileId + ".pdf";
-      
         try {
-          await uploadBytesToBlobStorage(containerName, blobName, templatechunk);
-      await updatequery.uploadPdfFieInfo(fileId, result.originalname,blobName,i,projectId)
+          let fileId = uuidv4().toUpperCase();
+
+          let blobName = `${fileId}.${fileType}`;
+          await uploadBytesToBlobStorage(
+            containerName,
+            blobName,
+            templatechunk.splitPDFBytes
+          );
+
+          await updatequery.PdfSplitFilesInfo(
+            fileId,
+            mainPDFId,
+            result.originalname,
+            blobName,
+            i,
+            projectId,
+            templatechunk.startPageNumber,
+            fileType
+          );
+          console.log(fileId);
+
+          console.log("\n query Sucess Response SPLIT PDF UPLOADED INTO DB : ");
         } catch (error) {
           console.log(error);
           throw error;
         }
       });
-      try {
-      
-        const responses = await Promise.all(promises);
-        console.log(responses);
-      } catch (error) {
-        // res.status(500).json({ message: error });
-      }
-     }catch (error) {
-      console.log('Error parsing PDF document:', error);
-      // Handle the error as needed
-    }
-    } 
-    else if (extension === '.docx') {
+    } else if (fileType == "html") {
+      console.log("fileType", fileType);
+      let fileId = uuidv4().toUpperCase();
+      console.log("fileId", fileId);
+      let blobName = `${fileId}.${fileType}`;
+      await updatequery.PdfSplitFilesInfo(
+        fileId,
+        mainPDFId,
+        result.originalname,
+        blobName,
+        0,
+        projectId,
+        1,
+        fileType
+      );
+    }else if (fileType == 'vnd.openxmlformats-officedocument.wordprocessingml.document') {
       try {
         const result = await mammoth.extractRawText({ buffer: fileContent });
         const text = result.value;
 
         // Split DOCX content into parts
         const parts = splitDocxIntoParts(text);
-        console.log(parts)
+        
 
         // Generate and upload each part
         const promises = parts.map(async (templatechunk, i) => {
-          let fileId = uuidv4();
-          let blobName = fileId + ".docx";
+          let fileId = uuidv4().toUpperCase();
+          let blobName = `${fileId}.${fileType}`;
+          console.log(fileId)
 
           const bytes = Buffer.from(templatechunk, 'utf-8');
         
           try {
             await uploadBytesToBlobStorage(containerName, blobName, bytes);
-        await updatequery.uploadPdfFieInfo(fileId, result.originalname,blobName,i,projectId)
+            await updatequery.PdfSplitFilesInfo(
+              fileId,
+              mainPDFId,
+              result.originalname,
+              blobName,
+              i,
+              projectId,
+              1,
+              'docx'
+            );
           } catch (error) {
             console.log(error);
             throw error;
@@ -291,7 +353,7 @@ async function ProcessUploadedFile(data,projectId)
         try {
       
           const responses = await Promise.all(promises);
-          console.log(responses);
+          
         } catch (error) {
           // res.status(500).json({ message: error });
         }
@@ -300,7 +362,29 @@ async function ProcessUploadedFile(data,projectId)
         console.log(error);
         throw error;
       }
+    } else {
+      let fileId = uuidv4().toUpperCase();
+      console.log("fileId", fileId);
+      console.log(mainPDFId, "urlmainfile");
+      let blobName = `${fileId}.${fileType}`;
+      await updatequery.PdfSplitFilesInfo(
+        fileId,
+        mainPDFId,
+        result.originalname,
+        blobName,
+        0,
+        projectId,
+        1,
+        fileType
+      );
     }
+
+    try {
+      const responses = await Promise.all(promises);
+    } catch (error) {
+      // res.status(500).json({ message: error });
+    }
+    
     
   }
 }

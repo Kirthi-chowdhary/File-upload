@@ -497,22 +497,67 @@ ProjectId = '${projectId}'
     return null;
   }
 }
-async function uploadPdfFieInfo(fileId,originalname,blobName,i,projectId)
-{
 
+async function uploadPdfFieInfo(
+  fileId,
+  originalname,
+  blobName,
+  projectId,
+  fileType
+) {
   const query = `INSERT INTO dbo.ProjectFiles  
-  VALUES (@Id,@FileName,@FileRelativeURL,@ProjectId,@Processed,@Isprivate)`;
-            let pool = await sql.connect(config);
-            const response = await pool
-              .request()
-              .input("Id", fileId)
-              .input("FileName", i + 1 + "_" + originalname)
-              .input("FileRelativeURL", blobName)
-              .input("ProjectId", projectId)
-              .input("Processed", 0)
-              .input("Isprivate", 0)
-              .query(query);
-              console.log(response,"valida")
+  VALUES (@Id,@FileName,@FileRelativeURL,@ProjectId,@Processed,@Isprivate,@Type)`;
+  try {
+    let pool = await sql.connect(config);
+    const response = await pool
+      .request()
+      .input("Id", fileId)
+      .input("FileName", originalname)
+      .input("FileRelativeURL", blobName)
+      .input("ProjectId", projectId)
+      .input("Processed", 0)
+      .input("Isprivate", 0)
+      .input("Type", fileType)
+      .query(query);
+
+    console.log(response, "valida");
+  } catch (error) {
+    console.log(error);
+  }
+}
+async function PdfSplitFilesInfo(
+  splitFileId,
+  mainPDFId,
+  originalname,
+  splitFileBlobName,
+  i,
+  projectId,
+  startPageNumber,
+  fileType
+) {
+  const query = `INSERT INTO dbo.PdfSplitFiles 
+  VALUES (@Id,@ProjectFileId,@SplitFileName,@FileRelativeURL,@ProjectId,@Processed,@Isprivate,@StartPageNumber,@MainFileName,@Type)`;
+  try {
+    let pool = await sql.connect(config);
+    let response = await pool
+      .request()
+      .input("Id", splitFileId)
+      .input("ProjectFileId", '69CAA14F-4367-48B7-9D5A-766DE08DC60C')
+      .input("SplitFileName", i + 1 + "_" + originalname)
+      .input("FileRelativeURL", splitFileBlobName)
+      .input("ProjectId", projectId)
+      .input("Processed", 0)
+      .input("Isprivate", 0)
+      .input("StartPageNumber", startPageNumber)
+      .input("MainFileName", originalname)
+      .input("Type", fileType)
+
+      .query(query);
+    console.log(response, "valida")
+    return response
+  } catch (error) {
+    console.log(error);
+  }
 }
 module.exports.updateProjectFilesProcessStatus=updateProjectFilesProcessStatus
 module.exports.sessionHistorycheck=sessionHistorycheck
@@ -539,3 +584,4 @@ module.exports.restrictFileAccessInfo=restrictFileAccessInfo
 module.exports.getallowedusersInfo=getallowedusersInfo
 module.exports.deleteallowedusersInfo=deleteallowedusersInfo
 module.exports.addallowedusersInfo=addallowedusersInfo
+module.exports.PdfSplitFilesInfo = PdfSplitFilesInfo
