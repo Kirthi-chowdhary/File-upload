@@ -226,24 +226,24 @@ async function ProcessUploadedFile(data,projectId)
       "UPLOADING SPLIT PDF WHOS ID is mainPDFBlobName : ",
       mainPDFBlobName
     );
-    // await uploadBytesToBlobStorage(containerName, mainPDFBlobName, fileContent);
-    // if(fileType != 'vnd.openxmlformats-officedocument.wordprocessingml.document'){
-    //   await updatequery.uploadPdfFieInfo(
-    //     mainPDFId,
-    //     result.originalname,
-    //     mainPDFBlobName,
-    //     projectId,
-    //     fileType
-    //   );
-    // }else{
-    //   await updatequery.uploadPdfFieInfo(
-    //     mainPDFId,
-    //     result.originalname,
-    //     mainPDFBlobName,
-    //     projectId,
-    //     'docx'
-    //   );
-    // }
+    await uploadBytesToBlobStorage(containerName, mainPDFBlobName, fileContent);
+    if(fileType != 'vnd.openxmlformats-officedocument.wordprocessingml.document'){
+      await updatequery.uploadPdfFieInfo(
+        mainPDFId,
+        result.originalname,
+        mainPDFBlobName,
+        projectId,
+        fileType
+      );
+    }else{
+      await updatequery.uploadPdfFieInfo(
+        mainPDFId,
+        result.originalname,
+        mainPDFBlobName,
+        projectId,
+        'docx'
+      );
+    }
     
 
     if (fileType == "pdf") {

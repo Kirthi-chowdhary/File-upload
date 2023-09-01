@@ -542,7 +542,7 @@ async function PdfSplitFilesInfo(
     let response = await pool
       .request()
       .input("Id", splitFileId)
-      .input("ProjectFileId", '69CAA14F-4367-48B7-9D5A-766DE08DC60C')
+      .input("ProjectFileId", mainPDFId)
       .input("SplitFileName", i + 1 + "_" + originalname)
       .input("FileRelativeURL", splitFileBlobName)
       .input("ProjectId", projectId)
